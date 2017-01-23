@@ -13,7 +13,6 @@ class extractDataFromDB:
         self.username = username
         self.password = password
         self.dbname = dbname
-        self.tbname = tbname
 
     def connect_db(self):
         # connect to the database
