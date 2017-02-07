@@ -1,3 +1,4 @@
 python trainingset_selection.py
-python dataset_merging.py
+# merge similar enterprise data as cluster (optional)
+# python dataset_merging.py
 python neural_network_run.py
