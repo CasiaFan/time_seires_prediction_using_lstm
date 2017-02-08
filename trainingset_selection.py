@@ -10,12 +10,12 @@ import datetime as dt
 
 class TrainingSetSelection():
     def __init__(self,
-                 localhost="112.74.30.59",
-                 username="fanzong",
-                 password="maxfun",
-                 dbname="maxfun_tp",
-                 trans_tbname="transaction",
-                 enter_tbname="enterprise",
+                 localhost="your_db_ip",
+                 username="your_username",
+                 password="your_db_passwd",
+                 dbname="your_db_name",
+                 trans_tbname="your_transaction_tb",
+                 enter_tbname="your_enterprise_tb",
                  enter_field="enterprise_id",
                  enter_list=None,
                  min_purchase_count=4,
@@ -236,7 +236,7 @@ class TrainingSetSelection():
         print "End generation!"
 
 def main():
-    outdir = "/home/fanzong/Desktop/RNN_prediction_2/enterprise-train.5-5"
+    outdir = "/your_local_path/RNN_prediction_2/enterprise-train.5-5"
     enter_list = [76, 88, 123]
     if not os.path.exists(outdir):
         os.makedirs(outdir)

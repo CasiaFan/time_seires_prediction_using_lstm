@@ -185,8 +185,8 @@ class NeuralNetwork():
 
 
 def main():
-    training_set_dir = "/home/fanzong/Desktop/RNN_prediction_2/cluster/train"
-    output_dir = "/home/fanzong/Desktop/RNN_prediction_2/cluster_lstm_model"
+    training_set_dir = "/your_local_path/RNN_prediction_2/cluster/train"
+    output_dir = "/your_local_path/RNN_prediction_2/cluster_lstm_model"
     training_set_id_range = (0, 1)
     training_set_length = 3
     dense_layer = 2
@@ -205,7 +205,7 @@ def main():
     log_file_path = output_dir + "/NN_model_running_log.txt"
     log_file_handler = open(log_file_path, "wb")
     print "Log message could be found in file: {}".format(log_file_path)
-    # sys.stdout = log_file_handler
+    sys.stdout = log_file_handler
     # check if the training set directory is empty. If so, run the training set selection
     if not os.listdir(obj_NN.training_set_dir):
         print "Training set files not exist! Run trainingSetSelection.trainingSetGeneration to generate them! Start running generating training set files..."
