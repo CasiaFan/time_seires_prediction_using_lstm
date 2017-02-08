@@ -2,7 +2,7 @@ __author__ = "Arkenstone"
 
 import os
 import sys
-from preprocessing import read_df_from_mysql_db
+from preprocessing import read_df_from_mysql_db, list2file, file2list
 from dateutil.parser import parse
 import pandas as pd
 import numpy as np
@@ -16,9 +16,11 @@ class TrainingSetSelection():
                  dbname="maxfun_tp",
                  trans_tbname="transaction",
                  enter_tbname="enterprise",
+                 enter_field="enterprise_id",
+                 enter_list=None,
                  min_purchase_count=4,
                  train_input_length=3,
-                 init_date=dt.datetime.now()-dt.timedelta(365*2),
+                 init_date=dt.datetime.now()-dt.timedelta(180),
                  cus_threshold=100
                  ):
         """
@@ -30,6 +32,8 @@ class TrainingSetSelection():
         transaction_id | customer_id | enterprise_id | price | create_time | ...
         1              | 1           | 1             | 10    | 2016-01-01  | ...
         ________________________________________________________________________
+        :param enter_field: enterprise_id header in mysql table
+        :param enter_list: specify enterprise_id list to retrieve
         :param min_purchase_count: customers above this minimum purchase count will be analyzed
         :param cus_threshold: enterprise above minimum regular customers will be analyzed
         :param train_input_length=3: number of customers in each training set input
@@ -41,6 +45,8 @@ class TrainingSetSelection():
         self.dbname = dbname
         self.trans_tbname = trans_tbname
         self.enter_tbname = enter_tbname
+        self.enter_field = enter_field
+        self.enter_list = enter_list
         self.min_purchase_count = min_purchase_count
         self.train_input_length = train_input_length
         # assert train_input length must be smaller than min_purchase _count
@@ -55,15 +61,15 @@ class TrainingSetSelection():
         print "Scanning all enterprises transaction data to filter enterprises whose number of frequent customer reach the minimum threshold ..."
         # get enterprise_id list in the enterprise db
         print "Retrieving enterprise id list from enterprise table ..."
-        enterprises_id_df = next(read_df_from_mysql_db(localhost=self.localhost, username=self.username, password=self.password, dbname=self.dbname, tbname=self.enter_tbname, fields="enterprise_id"))
+        enterprises_id_df = next(read_df_from_mysql_db(localhost=self.localhost, username=self.username, password=self.password, dbname=self.dbname, tbname=self.enter_tbname, enter_field=self.enter_field, enterprise_id=self.enter_list, fields="enterprise_id"))
         enterprises_trans_df = next(read_df_from_mysql_db(localhost=self.localhost, username=self.username, password=self.password, dbname=self.dbname,
-                                              tbname=self.trans_tbname, fields=["customer_id", "create_time"],
-                                              time_field="create_time", start_time=self.init_date))
+                                              tbname=self.trans_tbname, enter_field=self.enter_field, enterprise_id=self.enter_list, fields=["customer_id", "enterprise_id", "create_time"],
+                                              time_field="create_time", start_time=self.init_date.strftime("%Y-%m-%d")))
 
         # filter enterprises
         filter_enters = []
         for enterprise_id in enterprises_id_df.enterprise_id:
-            print "Analyzing current enterprise: %s" %str(enterprise_id)
+            print "Analyzing current enterprise: {}".format(enterprise_id)
             enter_df = enterprises_trans_df[enterprises_trans_df['enterprise_id'] == enterprise_id]
             # next loop if df is empty:
             if len(enter_df.index) == 0:
@@ -157,9 +163,9 @@ class TrainingSetSelection():
         return np.asarray(dataX), np.asarray(dataY)
 
 
-    def trainingSetGeneration(self, enterprise_id_list=None, fields=["customer_id", "enterprise_id", "price", "create_time"], outdir=".", override=False):
+    def trainingset_generation(self, enterprise_id_list_file=None, fields=["customer_id", "enterprise_id", "price", "create_time"], outdir=".", override=False):
         """
-        :param enterprise_id_list: enterprise those data meets the minimum requirement. If not provided, function select_enterprises will be performed
+        :param enterprise_id_list_file: enterprise those data meets the minimum requirement. If not provided, function select_enterprises will be performed
         :param outdir: output directory for generated training set file
         :param fields: column header for retrieve data
         :param override: re-generate existing files
@@ -172,16 +178,17 @@ class TrainingSetSelection():
         if not os.path.exists(outdir):
             os.makedirs(outdir)
         # get enterprise id list
-        if not os.path.exists(enterprise_id_list) or override:
+        if not enterprise_id_list_file:
+            enterprise_id_list_file = outdir + "/filtered_enterprise_id.txt"
+        if not os.path.exists(enterprise_id_list_file) or override:
             filter_enterprises = self._select_enterprises()
             # save filtered enterprise ids to file
-            outfile = outdir + "/filtered_enterprise_id.csv"
-            pd.DataFrame(filter_enterprises).to_csv(outfile)
-        filter_enterprises = np.asarray(pd.read_csv(enterprise_id_list))
+            list2file(filter_enterprises, enterprise_id_list_file)
+        filter_enterprises = file2list(enterprise_id_list_file)
         # get transaction df
-        trans_df = read_df_from_mysql_db(localhost=self.localhost, username=self.username, password=self.password,
-                                         dbname=self.dbname, tbname=self.trans_tbname, fields=fields,
-                                         start_time=self.init_date)
+        trans_df = next(read_df_from_mysql_db(localhost=self.localhost, username=self.username, password=self.password,
+                                         dbname=self.dbname, tbname=self.trans_tbname, enter_field=self.enter_field, enterprise_id=self.enter_list, fields=fields,
+                                         start_time=self.init_date.strftime("%Y-%m-%d")))
         for enterprise in filter_enterprises:
             outfile = outdir + "/" + str(enterprise) + ".csv"
             # override the existing file or not
@@ -189,7 +196,7 @@ class TrainingSetSelection():
             if os.path.exists(interval_file) and not override:
                 continue
             print "Retrieving transaction data of {} from transaction table".format(enterprise)
-            enter_df = trans_df[trans_df['enterprise_id'] == enterprise]
+            enter_df = trans_df[trans_df['enterprise_id'] == int(enterprise)]
             # df with interval
             df_interval = self._calculate_time_interval(enter_df)
             # remove lines with time interval is 0 (when encounter new customers)
@@ -229,7 +236,8 @@ class TrainingSetSelection():
         print "End generation!"
 
 def main():
-    outdir = "/home/fanzong/Desktop/RNN_prediction/enterprise-train.5-5"
+    outdir = "/home/fanzong/Desktop/RNN_prediction_2/enterprise-train.5-5"
+    enter_list = [76, 88, 123]
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     # redirect stdout to log file
@@ -237,8 +245,8 @@ def main():
     logfile = open(outdir + "/message.log.txt", "w")
     print "Log message could be found in file: {}".format(logfile)
     sys.stdout = logfile
-    obj_trainingSet = TrainingSetSelection()
-    obj_trainingSet.trainingSetGeneration(outdir)
+    obj_trainingSet = TrainingSetSelection(enter_list=enter_list)
+    obj_trainingSet.trainingset_generation(outdir=outdir)
     # return to normal stdout
     sys.stdout = old_stdout
     logfile.close()
